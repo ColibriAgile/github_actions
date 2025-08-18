@@ -1,0 +1,83 @@
+# Limpa execuções antigas do workflow
+name: Clean workflow runs
+
+on:
+  workflow_call:
+    inputs:
+      keep_last:
+        description: 'Número de execuções a manter por workflow'
+        required: false
+        default: 10
+        type: number
+
+jobs:
+  clean-workflow-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Excluir execuções antigas de cada workflow (incluindo órfãos)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          # Este script remove execuções antigas de todos os workflows do repositório,
+          # incluindo execuções de workflows que foram renomeados ou removidos (órfãos).
+          # Se keep_last=0, apaga todas as execuções exceto a execução atual.
+
+          # Busca todas as execuções de workflow do repositório, paginando para garantir que todas sejam coletadas
+          echo "Buscando todas as execuções de workflow do repositório"
+          gh api -H "Accept: application/vnd.github+json" \
+            "/repos/$REPO/actions/runs?per_page=100" --paginate \
+            | jq -r '.workflow_runs[] | "\(.name)\t\(.id)\t\(.created_at)"' \
+            | sort > runs_by_workflow.txt
+
+          # Para cada nome de workflow distinto encontrado nas execuções, processa separadamente
+          cut -f1 runs_by_workflow.txt | sort | uniq | while read -r workflow_name; do
+            echo " "
+            echo "»»» Processando workflow: $workflow_name"
+
+            # Filtra execuções deste workflow, ordenando do mais antigo para o mais novo pela data de criação
+            grep -F "$workflow_name" runs_by_workflow.txt | sort -k3 | awk -F'\t' '{print $2}' > run_ids.txt
+            total=$(wc -l < run_ids.txt)
+            echo "««« Execuções encontradas: $total"
+            echo " "
+            echo " "
+            cat run_ids.txt
+
+            # Obtém o número de execuções a manter (padrão ou informado via input)
+            keep_last="${{ inputs.keep_last }}"
+            keep_last="${keep_last:-10}"
+            to_delete=$((total - keep_last))
+
+            # Se keep_last=0, apaga todas as execuções exceto a execução atual
+            if [ "$keep_last" -eq 0 ]; then
+              echo "Apagando todas as execuções deste workflow, exceto a execução atual ($CURRENT_RUN_ID)"
+              echo " "
+              grep -v "^$CURRENT_RUN_ID$" run_ids.txt | while read -r run_id; do
+                run_id="$(echo "$run_id" | xargs)" # Remove espaços em branco
+                if [ -n "$run_id" ]; then
+                  gh api -X DELETE -H "Accept: application/vnd.github+json" "/repos/$REPO/actions/runs/$run_id"
+                  echo "Excluída execução $run_id do workflow $workflow_name"
+                fi
+              done
+
+            elif [ $to_delete -gt 0 ]; then
+              # Exclui as execuções mais antigas, mantendo apenas as mais recentes
+              head -n $to_delete run_ids.txt | while read -r run_id; do
+                run_id="$(echo "$run_id" | xargs)" # Remove espaços em branco
+              
+                # Nunca apaga a execução atual
+                if [ "$run_id" != "$CURRENT_RUN_ID" ]; then
+                  gh api -X DELETE -H "Accept: application/vnd.github+json" "/repos/$REPO/actions/runs/$run_id"
+                  echo "Excluída execução $run_id do workflow $workflow_name"
+                else
+                  echo "Ignorando execução atual $run_id"
+                fi
+              done
+            else
+              # Caso não haja execuções a excluir, apenas informa
+              echo "Nenhuma execução para excluir no workflow $workflow_name"
+            fi
+          done
+          # Remove arquivos temporários criados durante o processo
+          rm -f runs_by_workflow.txt run_ids.txt
