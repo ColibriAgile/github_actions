@@ -65,6 +65,10 @@ jobs:
         with:
           path: ${{ inputs.project_working_dir }}${{ env.CHART_FOLDER }}
 
+      - name: Upgrade pip and install setuptools
+        run: |
+           python -m pip install --upgrade pip setuptools
+    
       - name: Build image
         id: build
         env:
