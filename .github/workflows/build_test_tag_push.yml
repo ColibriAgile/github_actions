@@ -101,6 +101,12 @@ jobs:
             --env DB_HOST=${{ env.REPO_NAME }}db \
             --env DB_USER=postgres \
             --env DB_PASSWORD=${{ secrets.db_password }} \
+            --env DNS_RESELLERS=https://revendas.test/ \
+            --env HUB_URL=https://hub.test \
+            --env DNS_HUB=https://hub.test/ \
+            --env SOCKETIO_CORS_ORIGINS=https://hub.test \
+            --env DNS_MARKET_PLACE=https://marketplace.test/ \
+            --env URL_HUB=https://hub.test \
             --entrypoint fab ${{ env.REPO_NAME }}:${{ steps.vars.outputs.tag }} ${{ inputs.test_name }}
 
       - name: Publish Unit Test Results
