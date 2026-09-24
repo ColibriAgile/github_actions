@@ -10,10 +10,6 @@ on:
       repo_name:
         required: true
         type: string
-      # chart_folder:
-      #   required: false
-        # type: string
-        # default: chart
       tag_suffix:
         required: false
         type: string
@@ -67,16 +63,9 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Read Helm Chart
-      #   id: chart
-      #   uses: jacobtomlinson/gha-read-helm-chart@master
-      #   with:
-      #     path: ${{ inputs.project_working_dir }}${{ env.CHART_FOLDER }}  
-
       - name: Set image tag
         id: vars
         run: echo "tag=$(git rev-parse --short HEAD)${{ env.TAG_SUFFIX }}" >> $GITHUB_OUTPUT
-
 
       - name: Upgrade pip and install setuptools
         run: |
