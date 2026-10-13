@@ -77,7 +77,9 @@ jobs:
           IMAGE_NAME: ${{ env.REPO_NAME }}:${{ steps.vars.outputs.tag }}
         run: |
           cd ${{ inputs.project_working_dir }}
-          docker build -t ${{ env.IMAGE_NAME }} .
+          # BUILD_NUMBER: numero do build (run_number) para a versao completa no rodape (X.Y.Z.<build>);
+          # projetos que nao declaram o ARG no Dockerfile so recebem um aviso do Docker.
+          docker build --build-arg BUILD_NUMBER=${{ github.run_number }} -t ${{ env.IMAGE_NAME }} .
 
       - name: Run tests
         if: ${{ inputs.run_tests }}
